@@ -399,3 +399,61 @@ section[id] {
     transition: none;
   }
 }
+
+/* ---------- Formulario y resultado de la predicción ---------- */
+.form-select {
+  border-radius: 8px;
+  border-color: var(--blue-300);
+  padding: 0.55rem 0.8rem;
+  color: var(--ink);
+}
+
+.form-select:focus {
+  border-color: var(--blue-600);
+  box-shadow: 0 0 0 0.2rem rgba(21, 101, 192, 0.2);
+}
+
+.form-text {
+  color: var(--ink-2);
+}
+
+.wm-prediction {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--blue-300);
+  border-left: 6px solid var(--blue-700);
+  background: var(--blue-50);
+}
+
+.wm-prediction > .bi {
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--blue-700);
+}
+
+.wm-prediction-kicker {
+  color: var(--ink-2);
+}
+
+.wm-prediction-label {
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.wm-prediction.is-dry {
+  border-color: #f2d48a;
+  border-left-color: #c98a00;
+  background: #fff8e6;
+}
+
+.wm-prediction.is-dry > .bi {
+  color: #c98a00;
+}
+
+.wm-prediction .progress {
+  background: var(--white);
+}

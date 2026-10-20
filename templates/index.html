@@ -22,8 +22,9 @@
     />
   </head>
   <body class="d-flex flex-column min-vh-100">
-    {# Pantalla 2 (resultados) cuando hay resultados; si no, pantalla 1 (carga)
-    #} {% set show_results = results %}
+    {# Pantalla 2 (resultados y predicción) cuando hay un modelo entrenado;
+    si no, pantalla 1 (carga) #}
+    {% set show_results = results or prediction_schema %}
 
     <!-- ================= HEADER ================= -->
     <nav class="navbar navbar-dark wm-bar wm-bar-top">
@@ -45,11 +46,20 @@
       >
         <div>
           <h1 class="h3 mb-1">Resultados del modelo</h1>
-          <p class="wm-muted mb-0">Revisa qué tan bien aprendió el modelo.</p>
+          <p class="wm-muted mb-0">
+            Revisa qué tan bien aprendió el modelo y prueba una predicción.
+          </p>
         </div>
-        <a class="btn btn-outline-primary" href="/">
-          <i class="bi bi-arrow-left me-1"></i>Cargar otro dataset
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-primary" href="/">
+            <i class="bi bi-arrow-left me-1"></i>Cargar otro dataset
+          </a>
+          {% if prediction_schema %}
+          <a class="btn btn-primary" href="#prediccion">
+            <i class="bi bi-cloud-drizzle me-1"></i>Predecir
+          </a>
+          {% endif %}
+        </div>
       </div>
     </div>
     {% endif %}
@@ -344,7 +354,140 @@
           <code>{{ results.model_path }}</code>
         </p>
       </section>
-      {% endif %} {% endif %}
+      {% endif %}
+
+      {% if prediction_schema %}
+      <!-- =====================================================
+       FORMULARIO DE PREDICCIÓN (generado con las columnas del modelo)
+       ===================================================== -->
+      <section id="prediccion" class="wm-card mt-4" aria-labelledby="t-prediccion">
+        <div class="wm-card-head">
+          <h2 id="t-prediccion" class="h5 mb-0">
+            <i class="bi bi-cloud-drizzle me-2"></i>Predecir lluvia
+          </h2>
+          <p class="mb-0 small wm-muted">
+            Ingresa las condiciones del clima. Los campos corresponden a las
+            columnas con las que se entrenó el modelo.
+          </p>
+        </div>
+        <div class="wm-card-body">
+          {% if prediction_result %}
+          {% set label = prediction_result.label %}
+          {% set label_low = label | lower %}
+          {% if label_low in ['yes', 'si', 'sí', '1', '1.0', 'true', 'rain', 'lluvia', 'llueve'] %}
+            {% set state, icon, title = 'is-rain', 'bi-cloud-rain-heavy-fill', 'Lloverá' %}
+          {% elif label_low in ['no', '0', '0.0', 'false', 'dry', 'seco', 'sin lluvia'] %}
+            {% set state, icon, title = 'is-dry', 'bi-sun-fill', 'No lloverá' %}
+          {% else %}
+            {% set state, icon, title = 'is-other', 'bi-cloud-fill', 'Clase predicha: ' ~ label %}
+          {% endif %}
+          <div class="wm-prediction {{ state }}" role="status" aria-live="polite">
+            <i class="bi {{ icon }}" aria-hidden="true"></i>
+            <div class="flex-grow-1">
+              <p class="mb-0 small wm-prediction-kicker">Resultado de la predicción</p>
+              <p class="wm-prediction-label mb-1">
+                {{ title }}
+                <span class="small fw-normal">(clase <code>{{ label }}</code>)</span>
+              </p>
+              {% if prediction_result.probability is not none %}
+              <div class="d-flex align-items-center gap-2">
+                <div
+                  class="progress flex-grow-1"
+                  role="progressbar"
+                  aria-label="Confianza"
+                  aria-valuenow="{{ prediction_result.probability }}"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
+                  <div
+                    class="progress-bar"
+                    style="width:{{ prediction_result.probability }}%"
+                  ></div>
+                </div>
+                <span class="small fw-semibold text-nowrap"
+                  >{{ prediction_result.probability }}% de confianza</span
+                >
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          {# El ancla #prediccion lleva al usuario directo al resultado #}
+          <form
+            action="{{ url_for('predict') }}#prediccion"
+            method="post"
+            class="needs-validation"
+            novalidate
+            data-loading="Prediciendo…"
+          >
+            <div class="row g-3">
+              {% for field in prediction_schema %}
+              {% set field_id = 'campo-' ~ loop.index %}
+              {% set error = field_errors.get(field.name) %}
+              {% set value = prediction_values.get(field.name, '') %}
+              <div class="col-md-6">
+                <label class="form-label fw-semibold" for="{{ field_id }}"
+                  >{{ field.name }}</label
+                >
+                {% if field.kind == 'category' and field.options %}
+                <select
+                  class="form-select{{ ' is-invalid' if error }}"
+                  id="{{ field_id }}"
+                  name="{{ field.name }}"
+                  required
+                >
+                  <option value="" {{ 'selected' if not value }} disabled>
+                    Selecciona una opción…
+                  </option>
+                  {% for option in field.options %}
+                  <option value="{{ option }}" {{ 'selected' if option == value }}>
+                    {{ option }}
+                  </option>
+                  {% endfor %}
+                </select>
+                {% elif field.kind == 'number' %}
+                <input
+                  class="form-control{{ ' is-invalid' if error }}"
+                  id="{{ field_id }}"
+                  name="{{ field.name }}"
+                  type="number"
+                  step="any"
+                  inputmode="decimal"
+                  value="{{ value }}"
+                  {% if field.example is not none %}placeholder="Ej.: {{ field.example }}"{% endif %}
+                  required
+                />
+                {% if field.min is not none %}
+                <div class="form-text">
+                  En el dataset va de {{ field.min }} a {{ field.max }}.
+                </div>
+                {% endif %}
+                {% else %}
+                <input
+                  class="form-control{{ ' is-invalid' if error }}"
+                  id="{{ field_id }}"
+                  name="{{ field.name }}"
+                  type="text"
+                  value="{{ value }}"
+                  required
+                />
+                {% endif %}
+                <div class="invalid-feedback">
+                  {{ error or ('Ingresa un número en este campo.' if field.kind == 'number' else 'Este campo es obligatorio.') }}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <button class="btn btn-primary btn-lg w-100 mt-4" type="submit">
+              <i class="bi bi-magic me-1"></i>Predecir
+            </button>
+          </form>
+        </div>
+      </section>
+      {% endif %}
+      {% endif %}
     </main>
 
     <!-- ================= FOOTER ================= -->
@@ -413,10 +556,31 @@
           });
         }
 
+        // Validación del formulario de predicción antes de enviarlo
+        document
+          .querySelectorAll("form.needs-validation")
+          .forEach(function (form) {
+            form.addEventListener("submit", function (e) {
+              if (!form.checkValidity()) {
+                e.preventDefault();
+                var first = form.querySelector(":invalid");
+                if (first) first.focus();
+              }
+              form.classList.add("was-validated");
+            });
+            // Al corregir un campo se quita el error que marcó el servidor
+            form.querySelectorAll(".is-invalid").forEach(function (el) {
+              el.addEventListener("input", function () {
+                el.classList.remove("is-invalid");
+              });
+            });
+          });
+
         // Botones con estado de carga mientras el servidor trabaja
         var forms = document.querySelectorAll("form[data-loading]");
         forms.forEach(function (form) {
-          form.addEventListener("submit", function () {
+          form.addEventListener("submit", function (e) {
+            if (e.defaultPrevented) return;
             var btn = form.querySelector('button[type="submit"]');
             if (!btn) return;
             btn.dataset.label = btn.innerHTML;
